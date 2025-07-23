@@ -1,0 +1,19 @@
+{
+    "name": "nomad483/gig-fetch",
+    "description": "Fetch products from gig api",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Src\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "nomad483",
+            "email": "mykolazakliuka.work@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {}
+}
