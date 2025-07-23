@@ -18,9 +18,9 @@ class INeedProducts
     const int CACHE_LIFETIME = 3600;
     const string CACHE_FILE = self::CACHE_DIR . '/' . self::CACHE_FILE_NAME;
 
-    public static function getProductsFromGig(array $categories = []): array
+    public static function getProductsFromGig(array $categories = [], bool $cache = true): array
     {
-        $xml = new SimpleXMLElement(static::getXml());
+        $xml = new SimpleXMLElement(static::getXml($cache));
 
         $products = [];
 
