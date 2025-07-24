@@ -45,8 +45,6 @@ class INeedProducts
         $products = [];
 
         foreach ($xml->shop->offers->offer as $offer) {
-            //            print_r($offer);
-            //            die();
             if (!empty($categories) && !in_array((int)$offer->categoryId, $categories, true)) {
                 continue;
             }
