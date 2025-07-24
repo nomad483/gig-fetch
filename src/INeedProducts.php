@@ -9,27 +9,62 @@ use SimpleXMLElement;
 // TODO(me): Divide the class into several groups according to areas of responsibility
 class INeedProducts
 {
-    const string CACHE_DIR = ROOT_DIR . '/cache';
-    const string CACHE_FILE_NAME = 'products.xml';
-    /**
-     * Cache lifetime in seconds.
-     * Set to 3600 seconds (1 hour) by default.
-     */
-    const int CACHE_LIFETIME = 3600;
-    const string CACHE_FILE = self::CACHE_DIR . '/' . self::CACHE_FILE_NAME;
-
-    public static function getProductsFromGig(array $categories = [], bool $cache = true): array
+    public static function getProductsFromGig(string $url, array $categories = [], bool $cache = true): array
     {
-        $xml = new SimpleXMLElement(static::getXml($cache));
+        if (empty($url)) {
+            return [];
+        }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            error_log('Invalid URL provided: ' . $url);
+            return [];
+        }
+
+        $content = null;
+        $cacheProvider = new CacheProvider();
+        $cacheStoreKey = md5($url);
+
+        if ($cache) {
+            $content = $cacheProvider->get($cacheStoreKey);
+        }
+
+        if (empty($content)) {
+            $content = new FetchProvider()->fetch($url);
+
+            if (empty($content)) {
+                return [];
+            }
+
+            if ($cache) {
+                $cacheProvider->store($content, $cacheStoreKey);
+            }
+        }
+
+        $xml = new SimpleXMLElement($content);
 
         $products = [];
 
         foreach ($xml->shop->offers->offer as $offer) {
+            //            print_r($offer);
+            //            die();
             if (!empty($categories) && !in_array((int)$offer->categoryId, $categories, true)) {
                 continue;
             }
 
-            $modifications = [];
+            $groupId = (int)$offer['group_id'];
+
+            if (!isset($products[$groupId])) {
+                $title = !empty(trim((string)$offer->name_ua)) ? trim((string)$offer->name_ua) : trim((string)$offer->name);
+                $description = !empty(trim((string)$offer->description_ua)) ? trim((string)$offer->description_ua) : trim((string)$offer->description);
+
+                $products[$groupId] = [
+                    'title' => $title,
+                    'description' => $description,
+                    'price' => (int)$offer->price,
+                    'in_stock' => (string)$offer['available'],
+                    'modifications' => []
+                ];
+            }
 
             foreach ($offer->param as $param) {
                 if ((string)$param['name'] === 'Розмірна сітка') {
@@ -38,53 +73,21 @@ class INeedProducts
                     foreach ($all_sizes as $size) {
                         // так як в xml не має кількості по розмірах
                         // то просто беремо розмір і ставимо 1
-                        $modifications[trim($size)] = 1;
+                        if (!empty(trim($size))) {
+                            $products[$groupId]['modifications'][trim($size)] = 1;
+                        }
                     }
-                    break;
+                }
+
+                if ((string)$param['name'] === 'Розмір') {
+                    $size = trim((string)$param);
+                    if (!empty(trim($size))) {
+                        $products[$groupId]['modifications'][$size] = 1;
+                    }
                 }
             }
-
-            $products[] = [
-                'title' => (string)$offer->name,
-                'description' => trim((string)$offer->description),
-                'price' => (float)$offer->price,
-                'in_stock' => (string)$offer['available'],
-                'modifications' => $modifications
-            ];
         }
 
-        return $products;
-    }
-
-    private static function getXml(bool $cache = true): false|string
-    {
-        if ($cache && $content = static::getCachedContent()) {
-            return $content;
-        }
-
-        $content = file_get_contents('https://gigmilitary.com/feeds/yml-feed.xml');
-
-        if ($content === false) {
-            throw new \RuntimeException('Failed to fetch content from the URL');
-        }
-
-        if ($cache) {
-            if (!is_dir(self::CACHE_DIR)) {
-                mkdir(self::CACHE_DIR, 0755, true);
-            }
-
-            file_put_contents(self::CACHE_FILE, $content);
-        }
-
-        return $content;
-    }
-
-    private static function getCachedContent(): false|string|null
-    {
-        if (file_exists(self::CACHE_FILE) && (time() - filemtime(self::CACHE_FILE)) < self::CACHE_LIFETIME) {
-            return file_get_contents(self::CACHE_FILE);
-        }
-
-        return null;
+        return array_values($products);
     }
 }
